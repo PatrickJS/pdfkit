@@ -1,9 +1,11 @@
+require 'shellwords'
+
 class PDFKit
 
   class NoExecutableError < StandardError
     def initialize
       msg  = "No wkhtmltopdf executable found at #{PDFKit.configuration.wkhtmltopdf}\n"
-      msg << ">> Please install wkhtmltopdf - https://github.com/jdpace/PDFKit/wiki/Installing-WKHTMLTOPDF"
+      msg << ">> Please install wkhtmltopdf - https://github.com/pdfkit/PDFKit/wiki/Installing-WKHTMLTOPDF"
       super(msg)
     end
   end
@@ -42,7 +44,7 @@ class PDFKit
 
     args << (path || '-') # Write to file or stdout
 
-    args.map {|arg| %Q{"#{arg.gsub('"', '\"')}"}}
+    args.map {|arg| %Q{"#{arg.shellescape}"}}
   end
 
   def executable
@@ -68,7 +70,8 @@ class PDFKit
     end
     result = File.read(path) if path
 
-    raise "command failed: #{invoke}" if result.to_s.strip.empty?
+    # $? is thread safe per http://stackoverflow.com/questions/2164887/thread-safe-external-process-in-ruby-plus-checking-exitstatus
+    raise "command failed: #{invoke}" if result.to_s.strip.empty? or !$?.success?
     return result
   end
 
@@ -127,8 +130,12 @@ class PDFKit
 
     def normalize_value(value)
       case value
-      when TrueClass
+      when TrueClass #ie, ==true, see http://www.ruby-doc.org/core-1.9.3/TrueClass.html
         nil
+      when Hash
+        value.to_a.flatten.collect{|x| x.to_s}
+      when Array
+        value.flatten.collect{|x| x.to_s}
       else
         value.to_s
       end
